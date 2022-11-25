@@ -1,6 +1,19 @@
 import cv2
 import numpy as np
+from djitellopy import tello
+import time
 
+
+me = tello.Tello()
+me.connect()
+print(me.get_battery())
+me.streamon()
+
+me.takeoff()
+me.send_rc_control(0, 0, 25, 0)
+time.sleep(2.2)
+
+w, h = 360, 240
 fbRange = [6200, 6800]
 pid = [0.4, 0.4, 0]
 pError = 0
@@ -27,9 +40,10 @@ def findFace(img):
     else:
         return img, [[0, 0], 0]
 
-def trackFace(me, info, w, pid, pError):
+def trackFace(info, w, pid, pError):
     area = info[1]
     x, y= info[0]
+    fb = 0
 
     error = x - w // 2
     speed = pid[0] * error + pid[1] * (error - pError)
@@ -42,14 +56,25 @@ def trackFace(me, info, w, pid, pError):
     elif area < fbRange[0] and area != 0:
         fb = 20
 
+    if x == 0:
+        speed = 0
+        error = 0
+
+    # print(speed, fb)
+
     me.send_rc_control(0, fb, 0, speed)
     return error
 
-cap = cv2.VideoCapture(0)
+# cap = cv2.VideoCapture(0)
 
 while True:
-    _, img = cap.read()
+    # _, img = cap.read()
+    img = me.get_frame_read().frame
+    img = cv2.resize(img, (w, h))
     img, info = findFace(img)
-    print("Center", info[0], "Area", info[1])
+    pError = trackFace(info, w, pid, pError)
+    # print("Center", info[0], "Area", info[1])
     cv2.imshow("Ouput", img)
-    cv2.waitKey(1)
+    if cv2.waitKey(1) & 0xFF == ord('q'):
+        me.land()
+        break
